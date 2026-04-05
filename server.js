@@ -303,7 +303,21 @@ const httpServer = http.createServer(async (req, res) => {
     if (!streamer) return jsonResponse(res, 404, { error: "Token no existe" });
     try {
       const data = await leerBody(req);
-      const monto = parseFloat(data.monto) || 0;
+
+      // Parsear notificación de Yape
+      // Formato real: "Juan Cha* te envió un pago por S/ 2. El cód. de seguridad es: 737"
+      let nombreFinal = data.nombre || "Alguien";
+      let montoFinal  = parseFloat(data.monto) || 0;
+
+      const textoCompleto = data.nombre || data.monto || "";
+      if (textoCompleto.includes("te envió un pago por S/")) {
+        const matchNombre = textoCompleto.match(/^(.+?)\s+te envió/);
+        const matchMonto  = textoCompleto.match(/S\/\s*([\d]+(?:[.,]\d+)?)/);
+        if (matchNombre) nombreFinal = matchNombre[1].trim();
+        if (matchMonto)  montoFinal  = parseFloat(matchMonto[1].replace(",", "."));
+      }
+
+      const monto = montoFinal;
 
       // Filtro de monto mínimo
       if (monto < streamer.montoMinimo) {
@@ -312,7 +326,7 @@ const httpServer = http.createServer(async (req, res) => {
       }
 
       const mensaje = {
-        nombre: data.nombre || "Alguien",
+        nombre: nombreFinal,
         monto: monto.toFixed(2),
         descripcion: data.descripcion || "",
         timestamp: Date.now(),
