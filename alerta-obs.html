@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Yape Alert</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: transparent;
+    font-family: 'Segoe UI', sans-serif;
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-end;
+    padding: 20px;
+    width: 100vw; height: 100vh;
+    overflow: hidden;
+  }
+  #alerta {
+    display: none;
+    background: rgba(10,10,10,0.88);
+    border-left: 4px solid #8B2FC9;
+    border-radius: 12px;
+    padding: 16px 20px;
+    min-width: 280px; max-width: 360px;
+    animation: slideIn 0.5s cubic-bezier(0.34,1.56,0.64,1) forwards;
+  }
+  #alerta.salir { animation: slideOut 0.4s ease-in forwards; }
+  @keyframes slideIn { from{transform:translateX(120%);opacity:0} to{transform:translateX(0);opacity:1} }
+  @keyframes slideOut { from{transform:translateX(0);opacity:1} to{transform:translateX(120%);opacity:0} }
+  .cabecera { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+  .icono { width:36px; height:36px; background:linear-gradient(135deg,#8B2FC9,#C44DFF); border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0; }
+  .titulo { color:#C44DFF; font-size:12px; font-weight:700; letter-spacing:1px; text-transform:uppercase; }
+  .nombre { color:#fff; font-size:16px; font-weight:600; }
+  .monto-wrap { display:flex; align-items:baseline; gap:4px; margin:8px 0 4px; }
+  .moneda { color:#aaa; font-size:13px; }
+  .monto { color:#7EE787; font-size:32px; font-weight:700; line-height:1; text-shadow:0 0 20px rgba(126,231,135,0.4); }
+  .descripcion { color:#ccc; font-size:13px; font-style:italic; margin-top:4px; border-top:1px solid rgba(255,255,255,0.1); padding-top:8px; display:none; }
+  .barra { height:2px; background:rgba(255,255,255,0.15); border-radius:2px; margin-top:12px; overflow:hidden; }
+  .barra-fill { height:100%; background:#8B2FC9; width:100%; }
+  #status { position:fixed; bottom:8px; left:8px; font-size:11px; color:rgba(255,255,255,0.3); }
+</style>
+</head>
+<body>
+
+<div id="alerta">
+  <div class="cabecera">
+    <div class="icono">💜</div>
+    <div>
+      <div class="titulo">¡Nuevo Yape!</div>
+      <div class="nombre" id="nombre">Alguien</div>
+    </div>
+  </div>
+  <div class="monto-wrap">
+    <span class="moneda">S/</span>
+    <span class="monto" id="monto">0.00</span>
+  </div>
+  <div class="descripcion" id="descripcion"></div>
+  <div class="barra"><div class="barra-fill" id="barra"></div></div>
+</div>
+
+<div id="status">desconectado</div>
+
+<script>
+  const DURACION = 7000;
+  let timer = null;
+  const alerta = document.getElementById("alerta");
+  const statusEl = document.getElementById("status");
+
+  // Leer token desde la URL: alerta-obs.html?token=abc123...
+  const params = new URLSearchParams(window.location.search);
+  const TOKEN = params.get("token");
+  // Leer servidor desde URL, o usar el origen actual
+  const SERVIDOR = params.get("server") || window.location.host;
+  const WS_URL = `wss://${SERVIDOR}/obs/${TOKEN}`;
+
+  function mostrar({ nombre, monto, descripcion }) {
+    clearTimeout(timer);
+    alerta.classList.remove("salir");
+    document.getElementById("nombre").textContent = nombre || "Alguien";
+    document.getElementById("monto").textContent = parseFloat(monto || 0).toFixed(2);
+    const descEl = document.getElementById("descripcion");
+    if (descripcion && descripcion.trim()) {
+      descEl.textContent = `"${descripcion}"`;
+      descEl.style.display = "block";
+    } else {
+      descEl.style.display = "none";
+    }
+    const barra = document.getElementById("barra");
+    barra.style.transition = "none";
+    barra.style.width = "100%";
+    alerta.style.display = "block";
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      barra.style.transition = `width ${DURACION}ms linear`;
+      barra.style.width = "0%";
+    }));
+    timer = setTimeout(() => {
+      alerta.classList.add("salir");
+      setTimeout(() => { alerta.style.display = "none"; }, 450);
+    }, DURACION);
+  }
+
+  function conectar() {
+    if (!TOKEN) {
+      statusEl.textContent = "⚠ falta ?token=... en la URL";
+      return;
+    }
+    const ws = new WebSocket(WS_URL);
+    ws.onopen = () => { statusEl.textContent = "conectado"; };
+    ws.onmessage = (e) => {
+      try { mostrar(JSON.parse(e.data)); } catch {}
+    };
+    ws.onclose = () => {
+      statusEl.textContent = "reconectando...";
+      setTimeout(conectar, 3000);
+    };
+    ws.onerror = () => { statusEl.textContent = "error ws"; };
+  }
+
+  conectar();
+</script>
+</body>
+</html>
